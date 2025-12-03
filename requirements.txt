@@ -1,0 +1,21 @@
+# PiPhone-X Requirements
+# For Raspberry Pi 3+ 32-bit OS
+
+# Serial communication with SIM7600X HAT
+pyserial>=3.5
+
+# GPIO access for Raspberry Pi
+RPi.GPIO>=0.7.1
+
+# UI Framework (tkinter is built-in, but we need PIL for images)
+Pillow>=9.0.0
+
+# For async operations
+schedule>=1.2.0
+
+# Audio handling for phone calls
+pyaudio>=0.2.13
+
+# Optional: For map rendering (GPS visualization)
+# matplotlib>=3.7.0
+

@@ -1,0 +1,26 @@
+[Unit]
+Description=PiPhone-X - Raspberry Pi Phone Application
+After=multi-user.target graphical.target
+Wants=graphical.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/piphone-x
+ExecStart=/usr/bin/python3 /home/pi/piphone-x/main.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Display settings
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+
+# Give time for X server to start
+ExecStartPre=/bin/sleep 5
+
+[Install]
+WantedBy=graphical.target
+
