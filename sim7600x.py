@@ -545,6 +545,87 @@ class SIM7600X:
             'signal': self.signal_strength
         }
     
+    # ==================== APN CONFIGURATION ====================
+    
+    def set_apn(self, apn: str, username: str = "", password: str = "") -> bool:
+        """
+        Configure APN settings for mobile data
+        
+        Args:
+            apn: Access Point Name (e.g., "Mobilenet")
+            username: APN username (leave empty if none)
+            password: APN password (leave empty if none)
+            
+        Returns:
+            True if configuration successful
+        """
+        # Define PDP context with APN
+        if username and password:
+            cmd = f'AT+CGDCONT=1,"IP","{apn}"'
+            self._send_at_command(cmd)
+            # Set authentication
+            auth_cmd = f'AT+CGAUTH=1,1,"{password}","{username}"'
+            response = self._send_at_command(auth_cmd)
+        else:
+            cmd = f'AT+CGDCONT=1,"IP","{apn}"'
+            response = self._send_at_command(cmd)
+        
+        return "OK" in response
+    
+    def get_apn(self) -> str:
+        """Get current APN configuration"""
+        response = self._send_at_command("AT+CGDCONT?")
+        match = re.search(r'\+CGDCONT:\s*1,"[^"]*","([^"]*)"', response)
+        if match:
+            return match.group(1)
+        return ""
+    
+    def activate_pdp(self) -> bool:
+        """Activate PDP context (data connection)"""
+        response = self._send_at_command("AT+CGACT=1,1", timeout=10)
+        return "OK" in response
+    
+    def deactivate_pdp(self) -> bool:
+        """Deactivate PDP context"""
+        response = self._send_at_command("AT+CGACT=0,1", timeout=5)
+        return "OK" in response
+    
+    def get_pdp_status(self) -> bool:
+        """Check if PDP context is active"""
+        response = self._send_at_command("AT+CGACT?")
+        return "+CGACT: 1,1" in response
+    
+    def set_network_mode(self, mode: str = "auto") -> bool:
+        """
+        Set preferred network mode
+        
+        Args:
+            mode: "auto", "4g", "3g", "2g"
+            
+        Returns:
+            True if successful
+        """
+        modes = {
+            "auto": "2",   # Automatic
+            "4g": "38",    # LTE only
+            "3g": "14",    # WCDMA only
+            "2g": "13"     # GSM only
+        }
+        if mode not in modes:
+            mode = "auto"
+        
+        response = self._send_at_command(f"AT+CNMP={modes[mode]}")
+        return "OK" in response
+    
+    def force_network_registration(self) -> bool:
+        """Force network registration attempt"""
+        # Deregister first
+        self._send_at_command("AT+COPS=2", timeout=5)
+        time.sleep(2)
+        # Auto-register
+        response = self._send_at_command("AT+COPS=0", timeout=30)
+        return "OK" in response
+    
     def get_imei(self) -> str:
         """Get device IMEI"""
         response = self._send_at_command("AT+GSN")
@@ -738,4 +819,25 @@ class SIM7600XSimulator(SIM7600X):
             'signal': True,
             'gps_module': True
         }
+    
+    def set_apn(self, apn: str, username: str = "", password: str = "") -> bool:
+        return True
+    
+    def get_apn(self) -> str:
+        return "Mobilenet"
+    
+    def activate_pdp(self) -> bool:
+        return True
+    
+    def deactivate_pdp(self) -> bool:
+        return True
+    
+    def get_pdp_status(self) -> bool:
+        return True
+    
+    def set_network_mode(self, mode: str = "auto") -> bool:
+        return True
+    
+    def force_network_registration(self) -> bool:
+        return True
 
