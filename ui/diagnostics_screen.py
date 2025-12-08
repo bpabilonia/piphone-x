@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import scrolledtext
 from typing import Optional
 from .theme import Theme, Colors
-from .components import TouchButton, ScrollableFrame
+from .components import TouchButton, ScrollableFrame, KeyboardButton
 
 
 class DiagnosticsScreen(tk.Frame):
@@ -242,6 +242,9 @@ class DiagnosticsScreen(tk.Frame):
         self.cmd_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=3, pady=6)
         self.cmd_entry.bind("<Return>", lambda e: self._send_at_command())
         
+        # Keyboard toggle button
+        KeyboardButton(input_frame, self.cmd_entry).pack(side=tk.LEFT, padx=2)
+        
         TouchButton(
             input_frame,
             text="Send",
@@ -414,15 +417,18 @@ class DiagnosticsScreen(tk.Frame):
         self.apn_entry.pack(side=tk.LEFT, padx=3)
         self.apn_entry.insert(0, "mobilenet")  # Default
         
+        # Keyboard toggle button
+        KeyboardButton(apn_row, self.apn_entry).pack(side=tk.LEFT, padx=1)
+        
         TouchButton(
             apn_row,
             text="Apply",
             command=self._apply_apn,
-            width=50,
+            width=45,
             height=24,
             font=(Theme.FONT_FAMILY, 8),
             bg=self.colors.accent_primary
-        ).pack(side=tk.LEFT, padx=3)
+        ).pack(side=tk.LEFT, padx=2)
         
         # Optional: Username/Password row (collapsed by default)
         auth_row = tk.Frame(apn_section, bg=self.colors.surface)
@@ -448,13 +454,15 @@ class DiagnosticsScreen(tk.Frame):
         )
         self.apn_user_entry.pack(side=tk.LEFT, padx=2)
         
+        KeyboardButton(auth_row, self.apn_user_entry).pack(side=tk.LEFT, padx=1)
+        
         tk.Label(
             auth_row,
             text="Pass:",
             font=(Theme.FONT_FAMILY, 8),
             bg=self.colors.surface,
             fg=self.colors.text_muted,
-            width=5
+            width=4
         ).pack(side=tk.LEFT)
         
         self.apn_pass_entry = tk.Entry(
@@ -468,6 +476,8 @@ class DiagnosticsScreen(tk.Frame):
             show="*"
         )
         self.apn_pass_entry.pack(side=tk.LEFT, padx=2)
+        
+        KeyboardButton(auth_row, self.apn_pass_entry).pack(side=tk.LEFT, padx=1)
         
         # Current APN display
         self.apn_status = tk.Label(
@@ -854,4 +864,5 @@ class DiagnosticsScreen(tk.Frame):
                 self.apn_status.config(text=f"Current: {apn}", fg=self.colors.text_muted)
         except:
             pass
+    
 

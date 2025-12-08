@@ -676,3 +676,225 @@ class ProgressRing(Canvas):
         self.progress = max(0, min(100, value))
         self._draw()
 
+
+class VirtualKeyboard(tk.Toplevel):
+    """
+    On-screen virtual keyboard for touchscreen input
+    Full-width keyboard with all keys visible
+    """
+    
+    def __init__(self, parent, target_entry, on_done: Callable = None):
+        super().__init__(parent)
+        
+        self.target = target_entry
+        self.on_done = on_done
+        self.shift_active = False
+        self.symbols_mode = False
+        
+        # Window setup
+        self.title("Keyboard")
+        self.configure(bg="#1e1e2e")
+        
+        # Full screen width, fixed height
+        kb_width = Theme.WIDTH  # 320px full width
+        kb_height = 185
+        
+        # Get screen position from parent
+        self.update_idletasks()
+        parent.update_idletasks()
+        
+        # Position at bottom of main window
+        root = parent.winfo_toplevel()
+        root_x = root.winfo_rootx()
+        root_y = root.winfo_rooty()
+        root_h = root.winfo_height()
+        
+        x = root_x
+        y = root_y + root_h - kb_height
+        
+        self.geometry(f"{kb_width}x{kb_height}+{x}+{y}")
+        self.resizable(False, False)
+        self.attributes('-topmost', True)
+        self.focus_set()
+        
+        # Build keyboard
+        self._build_keyboard()
+    
+    def _build_keyboard(self):
+        """Build the keyboard UI"""
+        main = tk.Frame(self, bg="#1e1e2e")
+        main.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        self.keys_frame = main
+        self._draw_keys()
+    
+    def _draw_keys(self):
+        """Draw all keyboard keys using grid for full width"""
+        for w in self.keys_frame.winfo_children():
+            w.destroy()
+        
+        # Layouts - use 10-column grid
+        if self.symbols_mode:
+            rows = [
+                [("1",1), ("2",1), ("3",1), ("4",1), ("5",1), ("6",1), ("7",1), ("8",1), ("9",1), ("0",1)],
+                [("@",1), ("#",1), ("$",1), ("%",1), ("&",1), ("*",1), ("-",1), ("+",1), ("(",1), (")",1)],
+                [("ABC",1), ("!",1), ("\"",1), ("'",1), (":",1), (";",1), ("/",1), ("?",1), ("DEL",2)],
+                [("123",2), ("SPC",4), (".",2), ("DONE",2)]
+            ]
+        else:
+            rows = [
+                [("Q",1), ("W",1), ("E",1), ("R",1), ("T",1), ("Y",1), ("U",1), ("I",1), ("O",1), ("P",1)],
+                [("A",1), ("S",1), ("D",1), ("F",1), ("G",1), ("H",1), ("J",1), ("K",1), ("L",1), (None,1)],
+                [("CAP",1), ("Z",1), ("X",1), ("C",1), ("V",1), ("B",1), ("N",1), ("M",1), ("DEL",2)],
+                [("123",2), ("SPC",4), (".",2), ("DONE",2)]
+            ]
+        
+        # Configure grid columns for even distribution
+        for col in range(10):
+            self.keys_frame.columnconfigure(col, weight=1, uniform="keys")
+        
+        for row_idx, row in enumerate(rows):
+            col = 0
+            for key, span in row:
+                if key is not None:
+                    self._make_key(self.keys_frame, key, row_idx, col, span)
+                col += span
+    
+    def _make_key(self, parent, key: str, row: int, col: int, colspan: int):
+        """Create a key button in grid"""
+        # Display text
+        if key == "SPC":
+            display = "space"
+        elif key == "DONE":
+            display = "OK"
+        elif key == "CAP":
+            display = "^" if not self.shift_active else "^^"
+        elif key == "DEL":
+            display = "<-"
+        elif key in ["123", "ABC"]:
+            display = key
+        elif not self.symbols_mode and key.isalpha():
+            display = key.upper() if self.shift_active else key.lower()
+        else:
+            display = key
+        
+        # Colors
+        if key == "DONE":
+            bg, fg, abg = "#00cc99", "#000000", "#00ffbb"
+        elif key == "DEL":
+            bg, fg, abg = "#dd4444", "#ffffff", "#ff6666"
+        elif key == "CAP" and self.shift_active:
+            bg, fg, abg = "#00cc99", "#000000", "#00ffbb"
+        elif key in ["CAP", "123", "ABC", "SPC"]:
+            bg, fg, abg = "#3a3a5a", "#ffffff", "#5a5a7a"
+        else:
+            bg, fg, abg = "#454570", "#ffffff", "#6565a0"
+        
+        btn = tk.Label(
+            parent,
+            text=display,
+            font=("Arial", 12, "bold"),
+            bg=bg,
+            fg=fg,
+            relief=tk.RAISED,
+            bd=1,
+            pady=8
+        )
+        btn.grid(row=row, column=col, columnspan=colspan, sticky="nsew", padx=1, pady=1)
+        
+        # Click events
+        btn.bind("<Button-1>", lambda e, k=key: self._on_click(e, k, bg, abg))
+        btn.bind("<ButtonRelease-1>", lambda e, k=key, b=btn, orig=bg: self._on_release(e, k, b, orig))
+    
+    def _on_click(self, event, key, bg, abg):
+        """Visual feedback on click"""
+        event.widget.configure(bg=abg)
+    
+    def _on_release(self, event, key, btn, orig_bg):
+        """Handle key release"""
+        btn.configure(bg=orig_bg)
+        self._press(key)
+    
+    def _press(self, key: str):
+        """Process key press"""
+        if key == "DEL":
+            if isinstance(self.target, tk.Entry):
+                pos = self.target.index(tk.INSERT)
+                if pos > 0:
+                    self.target.delete(pos - 1, pos)
+            elif isinstance(self.target, tk.Text):
+                self.target.delete("insert-1c", "insert")
+        
+        elif key == "CAP":
+            self.shift_active = not self.shift_active
+            self._draw_keys()
+        
+        elif key == "123":
+            self.symbols_mode = True
+            self._draw_keys()
+        
+        elif key == "ABC":
+            self.symbols_mode = False
+            self._draw_keys()
+        
+        elif key == "SPC":
+            self._type(" ")
+        
+        elif key == "DONE":
+            if self.on_done:
+                self.on_done()
+            self.destroy()
+        
+        else:
+            char = key.upper() if self.shift_active and key.isalpha() else key
+            if not self.shift_active and key.isalpha():
+                char = key.lower()
+            self._type(char)
+    
+    def _type(self, char: str):
+        """Insert character into target"""
+        if isinstance(self.target, tk.Entry):
+            self.target.insert(tk.INSERT, char)
+        elif isinstance(self.target, tk.Text):
+            self.target.insert(tk.INSERT, char)
+    
+    def close(self):
+        self.destroy()
+
+
+class KeyboardButton(tk.Button):
+    """
+    Keyboard icon button to show virtual keyboard
+    """
+    
+    def __init__(self, parent, target_entry, **kwargs):
+        self.target = target_entry
+        self.keyboard = None
+        
+        super().__init__(
+            parent,
+            text="[A]",
+            font=("Arial", 9, "bold"),
+            bg="#3a3a5a",
+            fg="#ccccee",
+            activebackground="#00cc99",
+            activeforeground="#000000",
+            relief=tk.RAISED,
+            bd=1,
+            padx=4,
+            pady=0,
+            command=self._toggle,
+            **kwargs
+        )
+    
+    def _toggle(self):
+        """Toggle keyboard visibility"""
+        if self.keyboard and self.keyboard.winfo_exists():
+            self.keyboard.destroy()
+            self.keyboard = None
+        else:
+            root = self.winfo_toplevel()
+            self.keyboard = VirtualKeyboard(root, self.target, on_done=self._done)
+    
+    def _done(self):
+        self.keyboard = None
+

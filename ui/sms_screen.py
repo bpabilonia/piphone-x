@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Optional, List, Dict
 from .theme import Theme, Colors
-from .components import TouchButton, ScrollableFrame, MessageBubble
+from .components import TouchButton, ScrollableFrame, MessageBubble, KeyboardButton
 
 
 class SMSScreen(tk.Frame):
@@ -125,6 +125,9 @@ class SMSScreen(tk.Frame):
         self.message_entry.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=6, pady=6)
         self.message_entry.bind("<Return>", lambda e: self._send_message())
         
+        # Keyboard toggle button
+        KeyboardButton(input_frame, self.message_entry).pack(side=tk.LEFT, padx=2)
+        
         # Send button
         self.send_btn = TouchButton(
             input_frame,
@@ -165,6 +168,9 @@ class SMSScreen(tk.Frame):
         )
         self.recipient_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=8, pady=8)
         
+        # Keyboard toggle button
+        KeyboardButton(recipient_frame, self.recipient_entry).pack(side=tk.LEFT, padx=4)
+        
         # Message input
         message_frame = tk.Frame(self.compose_frame, bg=self.colors.background)
         message_frame.pack(fill=tk.BOTH, expand=True, pady=5, padx=8)
@@ -180,6 +186,11 @@ class SMSScreen(tk.Frame):
             wrap=tk.WORD
         )
         self.compose_text.pack(fill=tk.BOTH, expand=True)
+        
+        # Keyboard button for compose text
+        kb_frame = tk.Frame(message_frame, bg=self.colors.background)
+        kb_frame.pack(fill=tk.X, pady=2)
+        KeyboardButton(kb_frame, self.compose_text).pack(side=tk.RIGHT, padx=4)
         
         # Send button
         btn_frame = tk.Frame(self.compose_frame, bg=self.colors.background)
