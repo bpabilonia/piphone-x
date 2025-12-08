@@ -185,8 +185,8 @@ class PiPhoneApp:
     
     def _update_status(self):
         """Update status bar information"""
-        # Update time
-        current_time = time.strftime("%H:%M")
+        # Update time (12-hour format with AM/PM)
+        current_time = time.strftime("%I:%M %p").lstrip("0")
         self.status_bar.update_time(current_time)
         
         # Update from modem

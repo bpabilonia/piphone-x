@@ -897,4 +897,3 @@ class KeyboardButton(tk.Button):
     
     def _done(self):
         self.keyboard = None
-
