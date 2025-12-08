@@ -173,6 +173,9 @@ class SIM7600X:
         # Enable caller ID
         self._send_at_command("AT+CLIP=1")
         
+        # Configure audio for calls
+        self._setup_audio()
+        
         # Configure network for SpeedTalk/T-Mobile
         # Set to 3G mode (more reliable for voice/SMS on MVNOs)
         print("Setting network mode to 3G (WCDMA)...")
@@ -196,6 +199,69 @@ class SIM7600X:
             print(f"Successfully registered on: {self.operator_name}")
         else:
             print("Warning: Not registered on network yet. May take a few moments.")
+    
+    def _setup_audio(self):
+        """Configure audio for voice calls"""
+        print("Configuring audio...")
+        
+        # Set audio device to headset/external (1=headset, 3=speaker phone)
+        # Try headset first for 3.5mm jack
+        self._send_at_command("AT+CSDVC=1")
+        
+        # Set speaker volume (0-5, 5=max)
+        self._send_at_command("AT+CLVL=5")
+        
+        # Set microphone gain (channel, gain 0-15)
+        self._send_at_command("AT+CMIC=0,10")
+        
+        # Enable sidetone (hear yourself) - helps confirm mic is working
+        self._send_at_command("AT+SIDET=0,1000")
+        
+        # Unmute microphone
+        self._send_at_command("AT+CMUT=0")
+        
+        # Enable USB audio mode (if supported)
+        # This routes audio over USB for Pi audio devices
+        response = self._send_at_command("AT+CPCMREG?")
+        if "ERROR" not in response:
+            # Enable PCM audio interface
+            self._send_at_command("AT+CPCMREG=1")
+        
+        print("Audio configured")
+    
+    def set_audio_device(self, device: str) -> bool:
+        """
+        Set audio output device
+        device: 'headset', 'speaker', 'usb'
+        """
+        devices = {
+            'headset': 1,   # 3.5mm headset jack on HAT
+            'speaker': 3,   # External speaker
+            'handset': 0,   # Default handset
+        }
+        
+        if device not in devices:
+            return False
+        
+        response = self._send_at_command(f"AT+CSDVC={devices[device]}")
+        return "OK" in response
+    
+    def set_volume(self, level: int) -> bool:
+        """Set speaker volume (0-5)"""
+        level = max(0, min(5, level))
+        response = self._send_at_command(f"AT+CLVL={level}")
+        return "OK" in response
+    
+    def set_mic_gain(self, gain: int) -> bool:
+        """Set microphone gain (0-15)"""
+        gain = max(0, min(15, gain))
+        response = self._send_at_command(f"AT+CMIC=0,{gain}")
+        return "OK" in response
+    
+    def mute_mic(self, mute: bool = True) -> bool:
+        """Mute or unmute microphone"""
+        response = self._send_at_command(f"AT+CMUT={1 if mute else 0}")
+        return "OK" in response
     
     def _send_at_command(self, command: str, timeout: float = 2.0) -> str:
         """
