@@ -212,7 +212,7 @@ class CircleButton(Canvas):
 
 class StatusBar(tk.Frame):
     """
-    Top status bar showing time, signal, battery
+    Top status bar showing time, signal, battery, and close button
     """
     
     def __init__(self, parent, **kwargs):
@@ -221,15 +221,29 @@ class StatusBar(tk.Frame):
         
         self.colors = colors
         
+        # Close button (X) on far left
+        self.close_btn = tk.Label(
+            self,
+            text="✕",
+            font=("Arial", 14, "bold"),
+            bg=colors.status_bg,
+            fg="#ff5555",
+            cursor="hand2"
+        )
+        self.close_btn.pack(side=tk.LEFT, padx=(10, 4))
+        self.close_btn.bind("<Button-1>", self._on_close_click)
+        self.close_btn.bind("<Enter>", lambda e: self.close_btn.config(fg="#ff0000"))
+        self.close_btn.bind("<Leave>", lambda e: self.close_btn.config(fg="#ff5555"))
+        
         # Time display
         self.time_label = tk.Label(
             self,
-            text="12:00",
+            text="12:00 PM",
             font=Theme.FONT_SMALL,
             bg=colors.status_bg,
             fg=colors.text_primary
         )
-        self.time_label.pack(side=tk.LEFT, padx=10)
+        self.time_label.pack(side=tk.LEFT, padx=6)
         
         # Operator name
         self.operator_label = tk.Label(
@@ -272,6 +286,12 @@ class StatusBar(tk.Frame):
     
     def update_time(self, time_str: str):
         self.time_label.config(text=time_str)
+    
+    def _on_close_click(self, event):
+        """Close the application"""
+        root = self.winfo_toplevel()
+        root.quit()
+        root.destroy()
     
     def update_signal(self, strength: int):
         """Update signal strength (0-100)"""
