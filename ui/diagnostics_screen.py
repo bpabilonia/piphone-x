@@ -281,7 +281,7 @@ class DiagnosticsScreen(tk.Frame):
         self.network_panel = tk.Frame(self.tab_content, bg=self.colors.background)
         
         info_frame = tk.Frame(self.network_panel, bg=self.colors.background)
-        info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        info_frame.pack(fill=tk.X, padx=5, pady=3)
         
         # Network items
         self.network_items = {}
@@ -289,63 +289,227 @@ class DiagnosticsScreen(tk.Frame):
             ("registered", "Status"),
             ("operator", "Operator"),
             ("signal", "Signal"),
-            ("technology", "Tech")
+            ("mode", "Mode")
         ]
         
         for key, label in fields:
             item = tk.Frame(info_frame, bg=self.colors.surface)
-            item.pack(fill=tk.X, pady=2)
+            item.pack(fill=tk.X, pady=1)
             
             tk.Label(
                 item,
                 text=label,
-                font=Theme.FONT_SMALL,
+                font=Theme.FONT_TINY,
                 bg=self.colors.surface,
                 fg=self.colors.text_muted,
-                width=10,
+                width=8,
                 anchor=tk.W
-            ).pack(side=tk.LEFT, padx=10, pady=8)
+            ).pack(side=tk.LEFT, padx=8, pady=5)
             
             value_label = tk.Label(
                 item,
                 text="--",
-                font=Theme.FONT_SMALL,
+                font=Theme.FONT_TINY,
                 bg=self.colors.surface,
                 fg=self.colors.text_primary
             )
-            value_label.pack(side=tk.RIGHT, padx=10, pady=8)
+            value_label.pack(side=tk.RIGHT, padx=8, pady=5)
             
             self.network_items[key] = value_label
         
         # Signal strength bar
         signal_frame = tk.Frame(self.network_panel, bg=self.colors.background)
-        signal_frame.pack(fill=tk.X, padx=10, pady=5)
+        signal_frame.pack(fill=tk.X, padx=10, pady=3)
         
         tk.Label(
             signal_frame,
             text="Signal",
-            font=Theme.FONT_TINY,
+            font=(Theme.FONT_FAMILY, 8),
             bg=self.colors.background,
             fg=self.colors.text_secondary
         ).pack(side=tk.LEFT)
         
         self.signal_bar = tk.Canvas(
             signal_frame,
-            width=220,
-            height=16,
+            width=200,
+            height=12,
             bg=self.colors.surface,
             highlightthickness=0
         )
         self.signal_bar.pack(side=tk.LEFT, padx=8)
         
+        # Network Mode Toggle Section
+        mode_section = tk.Frame(self.network_panel, bg=self.colors.surface)
+        mode_section.pack(fill=tk.X, padx=5, pady=3)
+        
+        tk.Label(
+            mode_section,
+            text="Network Mode",
+            font=Theme.FONT_TINY,
+            bg=self.colors.surface,
+            fg=self.colors.text_primary
+        ).pack(pady=(3, 2))
+        
+        # Mode buttons frame
+        mode_btns = tk.Frame(mode_section, bg=self.colors.surface)
+        mode_btns.pack(pady=3)
+        
+        self.mode_buttons = {}
+        self.current_mode = "3g"  # Default
+        
+        modes = [
+            ("4G", "lte"),
+            ("3G", "3g"),
+            ("2G", "2g"),
+            ("Auto", "auto")
+        ]
+        
+        for label, mode in modes:
+            btn = TouchButton(
+                mode_btns,
+                text=label,
+                command=lambda m=mode: self._set_network_mode(m),
+                width=55,
+                height=26,
+                font=(Theme.FONT_FAMILY, 8),
+                bg=self.colors.accent_primary if mode == "3g" else self.colors.surface_light
+            )
+            btn.pack(side=tk.LEFT, padx=2)
+            self.mode_buttons[mode] = btn
+        
+        # APN Settings Section
+        apn_section = tk.Frame(self.network_panel, bg=self.colors.surface)
+        apn_section.pack(fill=tk.X, padx=5, pady=3)
+        
+        tk.Label(
+            apn_section,
+            text="APN Settings",
+            font=Theme.FONT_TINY,
+            bg=self.colors.surface,
+            fg=self.colors.text_primary
+        ).pack(pady=(3, 2))
+        
+        # APN entry row
+        apn_row = tk.Frame(apn_section, bg=self.colors.surface)
+        apn_row.pack(fill=tk.X, padx=5, pady=2)
+        
+        tk.Label(
+            apn_row,
+            text="APN:",
+            font=(Theme.FONT_FAMILY, 8),
+            bg=self.colors.surface,
+            fg=self.colors.text_muted,
+            width=5
+        ).pack(side=tk.LEFT)
+        
+        self.apn_entry = tk.Entry(
+            apn_row,
+            font=(Theme.FONT_FAMILY, 9),
+            bg=self.colors.surface_light,
+            fg=self.colors.text_primary,
+            insertbackground=self.colors.text_primary,
+            relief=tk.FLAT,
+            width=18
+        )
+        self.apn_entry.pack(side=tk.LEFT, padx=3)
+        self.apn_entry.insert(0, "mobilenet")  # Default
+        
         TouchButton(
-            self.network_panel,
+            apn_row,
+            text="Apply",
+            command=self._apply_apn,
+            width=50,
+            height=24,
+            font=(Theme.FONT_FAMILY, 8),
+            bg=self.colors.accent_primary
+        ).pack(side=tk.LEFT, padx=3)
+        
+        # Optional: Username/Password row (collapsed by default)
+        auth_row = tk.Frame(apn_section, bg=self.colors.surface)
+        auth_row.pack(fill=tk.X, padx=5, pady=2)
+        
+        tk.Label(
+            auth_row,
+            text="User:",
+            font=(Theme.FONT_FAMILY, 8),
+            bg=self.colors.surface,
+            fg=self.colors.text_muted,
+            width=5
+        ).pack(side=tk.LEFT)
+        
+        self.apn_user_entry = tk.Entry(
+            auth_row,
+            font=(Theme.FONT_FAMILY, 9),
+            bg=self.colors.surface_light,
+            fg=self.colors.text_primary,
+            insertbackground=self.colors.text_primary,
+            relief=tk.FLAT,
+            width=8
+        )
+        self.apn_user_entry.pack(side=tk.LEFT, padx=2)
+        
+        tk.Label(
+            auth_row,
+            text="Pass:",
+            font=(Theme.FONT_FAMILY, 8),
+            bg=self.colors.surface,
+            fg=self.colors.text_muted,
+            width=5
+        ).pack(side=tk.LEFT)
+        
+        self.apn_pass_entry = tk.Entry(
+            auth_row,
+            font=(Theme.FONT_FAMILY, 9),
+            bg=self.colors.surface_light,
+            fg=self.colors.text_primary,
+            insertbackground=self.colors.text_primary,
+            relief=tk.FLAT,
+            width=8,
+            show="*"
+        )
+        self.apn_pass_entry.pack(side=tk.LEFT, padx=2)
+        
+        # Current APN display
+        self.apn_status = tk.Label(
+            apn_section,
+            text="Current: mobilenet",
+            font=(Theme.FONT_FAMILY, 8),
+            bg=self.colors.surface,
+            fg=self.colors.text_muted
+        )
+        self.apn_status.pack(pady=(2, 4))
+        
+        # Bottom buttons
+        btn_frame = tk.Frame(self.network_panel, bg=self.colors.background)
+        btn_frame.pack(fill=tk.X, pady=3)
+        
+        TouchButton(
+            btn_frame,
             text="Refresh",
             command=self._refresh_network,
-            width=120,
-            height=36,
-            font=Theme.FONT_SMALL
-        ).pack(pady=8)
+            width=70,
+            height=28,
+            font=(Theme.FONT_FAMILY, 8)
+        ).pack(side=tk.LEFT, padx=3)
+        
+        TouchButton(
+            btn_frame,
+            text="Reset",
+            command=self._reset_modem,
+            width=70,
+            height=28,
+            font=(Theme.FONT_FAMILY, 8),
+            bg=self.colors.accent_warning
+        ).pack(side=tk.LEFT, padx=3)
+        
+        TouchButton(
+            btn_frame,
+            text="Register",
+            command=self._force_registration,
+            width=70,
+            height=28,
+            font=(Theme.FONT_FAMILY, 8)
+        ).pack(side=tk.LEFT, padx=3)
     
     def _hide_all_panels(self):
         """Hide all tab panels"""
@@ -378,6 +542,7 @@ class DiagnosticsScreen(tk.Frame):
         self._hide_all_panels()
         self.network_panel.pack(fill=tk.BOTH, expand=True)
         self._highlight_tab(3)
+        self._load_current_apn()
         self._refresh_network()
     
     def _highlight_tab(self, index):
@@ -503,8 +668,17 @@ class DiagnosticsScreen(tk.Frame):
         signal = info.get('signal', 0)
         self.network_items['signal'].config(text=f"{signal}%")
         
-        # Technology (simplified)
-        self.network_items['technology'].config(text="4G LTE")
+        # Current mode display
+        mode_names = {
+            "auto": "Auto",
+            "lte": "4G LTE",
+            "3g": "3G WCDMA",
+            "2g": "2G GSM"
+        }
+        self.network_items['mode'].config(
+            text=mode_names.get(self.current_mode, "3G WCDMA"),
+            fg=self.colors.text_primary
+        )
         
         # Update signal bar
         self._draw_signal_bar(signal)
@@ -515,13 +689,13 @@ class DiagnosticsScreen(tk.Frame):
         
         # Background
         self.signal_bar.create_rectangle(
-            0, 0, 220, 16,
+            0, 0, 200, 12,
             fill=self.colors.surface_light,
             outline=""
         )
         
         # Signal level
-        width = int(220 * (strength / 100))
+        width = int(200 * (strength / 100))
         
         if strength > 70:
             color = self.colors.accent_success
@@ -531,8 +705,153 @@ class DiagnosticsScreen(tk.Frame):
             color = self.colors.accent_danger
         
         self.signal_bar.create_rectangle(
-            0, 0, width, 16,
+            0, 0, width, 12,
             fill=color,
             outline=""
         )
+    
+    def _set_network_mode(self, mode: str):
+        """Set network mode (LTE, 3G, 2G, Auto)"""
+        if not self.modem:
+            return
+        
+        # Update button colors
+        for m, btn in self.mode_buttons.items():
+            if m == mode:
+                btn.set_colors(bg=self.colors.accent_primary, fg=self.colors.background)
+            else:
+                btn.set_colors(bg=self.colors.surface_light, fg=self.colors.text_primary)
+        
+        self.current_mode = mode
+        
+        # Send AT command based on mode
+        mode_commands = {
+            "auto": "AT+CNMP=2",    # Automatic
+            "lte": "AT+CNMP=38",    # LTE only
+            "3g": "AT+CNMP=14",     # WCDMA/3G only
+            "2g": "AT+CNMP=13"      # GSM/2G only
+        }
+        
+        mode_names = {
+            "auto": "Auto (4G/3G/2G)",
+            "lte": "4G LTE Only",
+            "3g": "3G WCDMA Only",
+            "2g": "2G GSM Only"
+        }
+        
+        # Show status
+        self.network_items['mode'].config(
+            text=f"Switching to {mode_names.get(mode, mode)}...",
+            fg=self.colors.accent_warning
+        )
+        self.update()
+        
+        # Send command
+        if mode in mode_commands:
+            self.modem.send_raw_command(mode_commands[mode])
+        
+        # Force re-registration
+        self.modem.send_raw_command("AT+COPS=0", 10)
+        
+        # Wait and refresh
+        self.after(3000, self._refresh_network)
+    
+    def _reset_modem(self):
+        """Reset/reboot the modem"""
+        if not self.modem:
+            return
+        
+        self.network_items['registered'].config(
+            text="Resetting...",
+            fg=self.colors.accent_warning
+        )
+        self.update()
+        
+        # Send reset command
+        self.modem.send_raw_command("AT+CFUN=1,1", 5)
+        
+        # Wait for modem to reboot
+        self.after(15000, self._after_reset)
+    
+    def _after_reset(self):
+        """Called after modem reset"""
+        if not self.modem:
+            return
+        
+        # Re-apply 3G mode (default)
+        self.modem.send_raw_command("AT+CNMP=14")
+        self.modem.send_raw_command('AT+CGDCONT=1,"IP","mobilenet"')
+        self.modem.send_raw_command("AT+COPS=0", 10)
+        
+        self.current_mode = "3g"
+        for m, btn in self.mode_buttons.items():
+            if m == "3g":
+                btn.set_colors(bg=self.colors.accent_primary, fg=self.colors.background)
+            else:
+                btn.set_colors(bg=self.colors.surface_light, fg=self.colors.text_primary)
+        
+        self.after(5000, self._refresh_network)
+    
+    def _force_registration(self):
+        """Force network re-registration"""
+        if not self.modem:
+            return
+        
+        self.network_items['registered'].config(
+            text="Registering...",
+            fg=self.colors.accent_warning
+        )
+        self.update()
+        
+        # Detach and re-attach
+        self.modem.send_raw_command("AT+COPS=2", 5)  # Deregister
+        self.after(2000, lambda: self.modem.send_raw_command("AT+COPS=0", 30))  # Re-register
+        self.after(10000, self._refresh_network)
+    
+    def _apply_apn(self):
+        """Apply APN settings"""
+        if not self.modem:
+            return
+        
+        apn = self.apn_entry.get().strip()
+        username = self.apn_user_entry.get().strip()
+        password = self.apn_pass_entry.get().strip()
+        
+        if not apn:
+            self.apn_status.config(text="Error: APN required", fg=self.colors.accent_danger)
+            return
+        
+        self.apn_status.config(text="Applying...", fg=self.colors.accent_warning)
+        self.update()
+        
+        # Set APN
+        if username and password:
+            # With authentication
+            self.modem.send_raw_command(f'AT+CGDCONT=1,"IP","{apn}"')
+            self.modem.send_raw_command(f'AT+CGAUTH=1,1,"{password}","{username}"')
+        else:
+            # Without authentication
+            self.modem.send_raw_command(f'AT+CGDCONT=1,"IP","{apn}"')
+        
+        # Force re-registration with new APN
+        self.modem.send_raw_command("AT+COPS=0", 10)
+        
+        self.apn_status.config(text=f"Current: {apn}", fg=self.colors.accent_success)
+        
+        # Refresh after a delay
+        self.after(5000, self._refresh_network)
+    
+    def _load_current_apn(self):
+        """Load current APN from modem"""
+        if not self.modem:
+            return
+        
+        try:
+            apn = self.modem.get_apn()
+            if apn:
+                self.apn_entry.delete(0, tk.END)
+                self.apn_entry.insert(0, apn)
+                self.apn_status.config(text=f"Current: {apn}", fg=self.colors.text_muted)
+        except:
+            pass
 

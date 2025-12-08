@@ -156,6 +156,8 @@ class SIM7600X:
     
     def _initialize_module(self):
         """Configure module for operation"""
+        print("Initializing SIM7600X module...")
+        
         # Disable echo
         self._send_at_command("ATE0")
         
@@ -171,8 +173,29 @@ class SIM7600X:
         # Enable caller ID
         self._send_at_command("AT+CLIP=1")
         
+        # Configure network for SpeedTalk/T-Mobile
+        # Set to 3G mode (more reliable for voice/SMS on MVNOs)
+        print("Setting network mode to 3G (WCDMA)...")
+        self._send_at_command("AT+CNMP=14")
+        
+        # Set APN for SpeedTalk (mobilenet)
+        print("Configuring APN: mobilenet")
+        self._send_at_command('AT+CGDCONT=1,"IP","mobilenet"')
+        
+        # Force network registration
+        print("Registering on network...")
+        self._send_at_command("AT+COPS=0", timeout=30)
+        
+        # Wait a moment for registration
+        time.sleep(5)
+        
         # Get initial network status
         self._update_network_status()
+        
+        if self.network_registered:
+            print(f"Successfully registered on: {self.operator_name}")
+        else:
+            print("Warning: Not registered on network yet. May take a few moments.")
     
     def _send_at_command(self, command: str, timeout: float = 2.0) -> str:
         """
@@ -824,7 +847,7 @@ class SIM7600XSimulator(SIM7600X):
         return True
     
     def get_apn(self) -> str:
-        return "Mobilenet"
+        return "mobilenet"
     
     def activate_pdp(self) -> bool:
         return True
