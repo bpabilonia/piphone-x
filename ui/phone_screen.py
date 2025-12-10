@@ -155,7 +155,7 @@ class PhoneScreen(tk.Frame):
         
         self.end_call_btn = CircleButton(
             end_frame,
-            text="✕",
+            text="📵",
             command=self._on_hangup,
             size=80,
             bg=self.colors.call_end

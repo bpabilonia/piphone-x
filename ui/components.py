@@ -479,7 +479,7 @@ class NumPad(tk.Frame):
             call_row = tk.Frame(self, bg=colors.background)
             call_row.grid(row=4, column=0, columnspan=3, pady=5)
             
-            # Call button (green)
+            # Call button (green) - phone pickup icon
             self.call_btn = CircleButton(
                 call_row,
                 text="📞",
@@ -489,10 +489,10 @@ class NumPad(tk.Frame):
             )
             self.call_btn.pack(side=tk.LEFT, padx=12)
             
-            # Hangup button (red)
+            # Hangup button (red) - phone hangup icon
             self.hangup_btn = CircleButton(
                 call_row,
-                text="✕",
+                text="📵",
                 command=self.on_hangup,
                 size=55,
                 bg=colors.call_end

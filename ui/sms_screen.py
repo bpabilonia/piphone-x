@@ -29,6 +29,10 @@ class SMSScreen(tk.Frame):
         # Set up modem callback for new messages
         if modem:
             modem.on_sms_received = self._on_sms_received
+        
+        # Start periodic SMS check as fallback
+        self._last_sms_count = 0
+        self._start_sms_polling()
     
     def _create_ui(self):
         """Build the SMS interface - compact for 320x480 (406px available)"""
@@ -69,6 +73,19 @@ class SMSScreen(tk.Frame):
             font=(Theme.FONT_FAMILY, 18, "bold")
         )
         self.new_btn.pack(side=tk.RIGHT, padx=8, pady=4)
+        
+        # Refresh button
+        self.refresh_btn = TouchButton(
+            self.header,
+            text="↻",
+            command=self._manual_refresh,
+            width=40,
+            height=30,
+            bg=self.colors.surface_light,
+            fg=self.colors.text_primary,
+            font=(Theme.FONT_FAMILY, 16)
+        )
+        self.refresh_btn.pack(side=tk.RIGHT, padx=2, pady=4)
         
         # Content area
         self.content = tk.Frame(self, bg=self.colors.background)
@@ -451,4 +468,70 @@ class SMSScreen(tk.Frame):
     def refresh(self):
         """Refresh all messages from modem"""
         self._load_messages()
+    
+    def _manual_refresh(self):
+        """Manual refresh triggered by button"""
+        # Visual feedback
+        self.refresh_btn.set_text("...")
+        self.update_idletasks()
+        
+        # Reload messages
+        self._load_messages()
+        
+        # Check for new unread
+        self._check_for_new_sms()
+        
+        # Restore button
+        self.after(500, lambda: self.refresh_btn.set_text("↻"))
+    
+    def _start_sms_polling(self):
+        """Start periodic SMS polling as fallback for notifications"""
+        self._check_for_new_sms()
+    
+    def _check_for_new_sms(self):
+        """Check for new SMS messages periodically"""
+        if self.modem:
+            try:
+                # Get unread messages
+                messages = self.modem.list_sms("REC UNREAD")
+                
+                if messages:
+                    for msg in messages:
+                        sender = msg.sender
+                        
+                        # Check if we already have this message
+                        if sender in self.conversations:
+                            existing = self.conversations[sender]
+                            already_exists = any(
+                                m['content'] == msg.content and 
+                                m['timestamp'] == msg.timestamp 
+                                for m in existing
+                            )
+                            if already_exists:
+                                continue
+                        
+                        # New message! Add it
+                        if sender not in self.conversations:
+                            self.conversations[sender] = []
+                        
+                        self.conversations[sender].append({
+                            'content': msg.content,
+                            'timestamp': msg.timestamp,
+                            'is_sent': False
+                        })
+                        
+                        # Refresh UI
+                        if self.current_conversation == sender:
+                            self._refresh_messages()
+                        else:
+                            self._refresh_conversation_list()
+                        
+                        # Mark as read
+                        if msg.index > 0:
+                            self.modem.delete_sms(msg.index)
+            except Exception as e:
+                print(f"SMS check error: {e}")
+        
+        # Check again in 10 seconds
+        self.after(10000, self._check_for_new_sms)
 

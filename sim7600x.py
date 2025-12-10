@@ -176,7 +176,12 @@ class SIM7600X:
         self._send_at_command("AT+CMGF=1")
         
         # Enable SMS notifications
-        self._send_at_command("AT+CNMI=2,1,0,0,0")
+        # Mode 2,2 = forward new SMS directly to TE with content
+        # This gives +CMT instead of +CMTI for immediate notification
+        self._send_at_command("AT+CNMI=2,2,0,1,0")
+        
+        # Also set preferred message storage to SIM
+        self._send_at_command('AT+CPMS="SM","SM","SM"')
         
         # Set character set to GSM
         self._send_at_command('AT+CSCS="GSM"')
@@ -339,8 +344,9 @@ class SIM7600X:
         """Process unsolicited responses from module"""
         lines = data.strip().split('\n')
         
-        for line in lines:
-            line = line.strip()
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
             
             # Incoming call notification
             if "+CLIP:" in line:
@@ -359,7 +365,7 @@ class SIM7600X:
                 if self.on_call_ended:
                     self.on_call_ended()
             
-            # New SMS notification
+            # New SMS notification (stored, need to read)
             elif "+CMTI:" in line:
                 match = re.search(r'\+CMTI:\s*"[^"]*",(\d+)', line)
                 if match:
@@ -367,6 +373,34 @@ class SIM7600X:
                     sms = self.read_sms(index)
                     if sms and self.on_sms_received:
                         self.on_sms_received(sms)
+            
+            # Direct SMS notification (content included)
+            # Format: +CMT: "sender","","timestamp"\r\nmessage content
+            elif "+CMT:" in line:
+                match = re.search(r'\+CMT:\s*"([^"]*)","[^"]*","([^"]*)"', line)
+                if match:
+                    sender = match.group(1)
+                    timestamp = match.group(2)
+                    # Message content is on the next line(s)
+                    content = ""
+                    i += 1
+                    while i < len(lines) and not lines[i].startswith("+"):
+                        content += lines[i].strip() + "\n"
+                        i += 1
+                    content = content.strip()
+                    
+                    if content and self.on_sms_received:
+                        sms = SMSMessage(
+                            index=-1,  # Not stored yet
+                            status="REC UNREAD",
+                            sender=sender,
+                            timestamp=timestamp,
+                            content=content
+                        )
+                        self.on_sms_received(sms)
+                    continue  # Skip increment since we already moved i
+            
+            i += 1
     
     # ==================== PHONE FUNCTIONS ====================
     
