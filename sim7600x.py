@@ -43,6 +43,8 @@ class GPSData:
     timestamp: str = ""
     satellites: int = 0
     fix_status: bool = False
+    hdop: float = 0.0  # Horizontal dilution of precision (accuracy indicator)
+    fix_type: int = 0  # 0=no fix, 1=GPS, 2=DGPS, 3=PPS, etc.
     
     def to_dict(self) -> dict:
         return {
@@ -53,8 +55,17 @@ class GPSData:
             'course': self.course,
             'timestamp': self.timestamp,
             'satellites': self.satellites,
-            'fix_status': self.fix_status
+            'fix_status': self.fix_status,
+            'hdop': self.hdop,
+            'fix_type': self.fix_type
         }
+    
+    @property
+    def accuracy_meters(self) -> float:
+        """Approximate horizontal accuracy in meters (HDOP * ~5m base accuracy)"""
+        if self.hdop > 0:
+            return self.hdop * 5.0
+        return 0.0
 
 
 @dataclass
@@ -518,12 +529,23 @@ class SIM7600X:
     
     def gps_power_on(self) -> bool:
         """Enable GPS module"""
+        # First check if already on
+        status = self._send_at_command("AT+CGPS?", timeout=3)
+        if "+CGPS: 1" in status:
+            return True
+        
+        # Turn on GPS with mode 1 (standalone)
         response = self._send_at_command("AT+CGPS=1,1", timeout=5)
-        return "OK" in response
+        if "OK" in response:
+            # Give GPS time to initialize
+            time.sleep(2)
+            return True
+        return False
     
     def gps_power_off(self) -> bool:
         """Disable GPS module"""
         response = self._send_at_command("AT+CGPS=0", timeout=5)
+        self.gps_data.fix_status = False
         return "OK" in response
     
     def get_gps_position(self) -> GPSData:
@@ -533,10 +555,12 @@ class SIM7600X:
         Returns:
             GPSData object with current position
         """
+        # Get GPS info
         response = self._send_at_command("AT+CGPSINFO", timeout=5)
         
         # Parse GPS info
         # Format: +CGPSINFO: lat,N/S,lon,E/W,date,UTC time,altitude,speed,course
+        # Example: +CGPSINFO: 3749.048467,N,12224.895475,W,100624,175032.0,10.1,0.0,0.0
         match = re.search(
             r'\+CGPSINFO:\s*(\d+\.?\d*),([NS]),(\d+\.?\d*),([EW]),(\d+),(\d+\.?\d*),(\d+\.?\d*),(\d+\.?\d*),(\d+\.?\d*)',
             response
@@ -571,21 +595,99 @@ class SIM7600X:
                 timestamp=f"{match.group(5)} {match.group(6)}",
                 fix_status=True
             )
+            
+            # Get satellite info and HDOP for accuracy
+            self._update_gps_satellites()
         else:
-            # Check if GPS is on but no fix
+            # Check if GPS is on but no fix (response shows empty fields)
+            # +CGPSINFO: ,,,,,,,, means GPS on but no fix
             if "+CGPSINFO:" in response:
                 self.gps_data.fix_status = False
+                self.gps_data.fix_type = 0
+                # Still try to get satellite count even without fix
+                self._update_gps_satellites()
         
         if self.on_gps_update:
             self.on_gps_update(self.gps_data)
         
         return self.gps_data
     
+    def _update_gps_satellites(self):
+        """Update satellite count and accuracy info"""
+        # Method 1: Try AT+CGPSSTATUS? for fix status
+        response = self._send_at_command("AT+CGPSSTATUS?", timeout=3)
+        # Response like: +CGPSSTATUS: Location 3D Fix
+        if "3D Fix" in response:
+            self.gps_data.fix_type = 3
+        elif "2D Fix" in response:
+            self.gps_data.fix_type = 2
+        elif "Location Not Fix" in response or "Location Unknown" in response:
+            self.gps_data.fix_type = 0
+        
+        # Method 2: Get NMEA GGA sentence for satellite count and HDOP
+        response = self._send_at_command("AT+CGPSINFOCFG=1,31", timeout=2)  # Enable GGA output
+        time.sleep(0.5)
+        
+        # Read NMEA data
+        nmea_response = self._send_at_command("AT+CGPSINFO", timeout=3)
+        
+        # Try to parse satellite count from GSV or use GPSINF
+        sat_response = self._send_at_command("AT+CGPSINF=32", timeout=3)
+        
+        # Parse NMEA GGA if available
+        # $GPGGA,hhmmss.ss,lat,N,lon,W,qual,numSats,hdop,alt,M,height,M,dgpsTime,dgpsId*checksum
+        gga_match = re.search(
+            r'\$G[PN]GGA,[\d.]*,[\d.]*,[NS],[\d.]*,[EW],\d,(\d+),([\d.]*),',
+            nmea_response + sat_response
+        )
+        
+        if gga_match:
+            self.gps_data.satellites = int(gga_match.group(1))
+            try:
+                self.gps_data.hdop = float(gga_match.group(2))
+            except:
+                self.gps_data.hdop = 0.0
+        else:
+            # Fallback: try basic satellite query
+            sat_match = re.search(r'(\d+)\s*satellites', response.lower())
+            if sat_match:
+                self.gps_data.satellites = int(sat_match.group(1))
+    
     def get_gps_satellites(self) -> int:
         """Get number of visible GPS satellites"""
-        response = self._send_at_command("AT+CGPSINFO", timeout=3)
-        # Satellite count not directly available, return cached value
+        self._update_gps_satellites()
         return self.gps_data.satellites
+    
+    def get_gps_status(self) -> dict:
+        """Get detailed GPS status"""
+        status = {
+            'powered': False,
+            'fix': False,
+            'fix_type': 0,
+            'satellites': 0,
+            'hdop': 0.0,
+            'accuracy_m': 0.0
+        }
+        
+        # Check if GPS is powered
+        response = self._send_at_command("AT+CGPS?", timeout=3)
+        if "+CGPS: 1" in response:
+            status['powered'] = True
+        
+        # Get fix status
+        response = self._send_at_command("AT+CGPSSTATUS?", timeout=3)
+        if "3D Fix" in response:
+            status['fix'] = True
+            status['fix_type'] = 3
+        elif "2D Fix" in response:
+            status['fix'] = True
+            status['fix_type'] = 2
+        
+        status['satellites'] = self.gps_data.satellites
+        status['hdop'] = self.gps_data.hdop
+        status['accuracy_m'] = self.gps_data.accuracy_meters
+        
+        return status
     
     # ==================== NETWORK FUNCTIONS ====================
     
@@ -821,7 +923,9 @@ class SIM7600XSimulator(SIM7600X):
             course=0.0,
             timestamp="2024-01-01 12:00:00",
             satellites=8,
-            fix_status=True
+            fix_status=True,
+            hdop=1.2,
+            fix_type=3
         )
         self._sms_storage: List[SMSMessage] = [
             SMSMessage(1, "REC READ", "+15551234567", "24/01/01,12:00:00", "Hello! This is a test message."),
@@ -878,19 +982,38 @@ class SIM7600XSimulator(SIM7600X):
         return True
     
     def gps_power_on(self) -> bool:
+        self.gps_data.fix_status = True
+        self.gps_data.fix_type = 3
         return True
     
     def gps_power_off(self) -> bool:
+        self.gps_data.fix_status = False
+        self.gps_data.fix_type = 0
         return True
     
     def get_gps_position(self) -> GPSData:
         # Simulate slight movement
         import random
-        self.gps_data.latitude += random.uniform(-0.0001, 0.0001)
-        self.gps_data.longitude += random.uniform(-0.0001, 0.0001)
-        self.gps_data.speed = random.uniform(0, 5)
+        if self.gps_data.fix_status:
+            self.gps_data.latitude += random.uniform(-0.0001, 0.0001)
+            self.gps_data.longitude += random.uniform(-0.0001, 0.0001)
+            self.gps_data.speed = random.uniform(0, 5)
+            self.gps_data.course = random.uniform(0, 360)
+            self.gps_data.satellites = random.randint(6, 12)
+            self.gps_data.hdop = random.uniform(0.8, 2.5)
+            self.gps_data.fix_type = 3
         self.gps_data.timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         return self.gps_data
+    
+    def get_gps_status(self) -> dict:
+        return {
+            'powered': True,
+            'fix': self.gps_data.fix_status,
+            'fix_type': self.gps_data.fix_type,
+            'satellites': self.gps_data.satellites,
+            'hdop': self.gps_data.hdop,
+            'accuracy_m': self.gps_data.accuracy_meters
+        }
     
     def get_module_info(self) -> Dict:
         return {

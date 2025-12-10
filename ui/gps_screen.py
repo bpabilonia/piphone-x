@@ -97,12 +97,22 @@ class GPSScreen(tk.Frame):
         # Accuracy
         self.accuracy_label = tk.Label(
             status_frame,
-            text="Accuracy: --",
+            text="Acc: -- m",
             font=Theme.FONT_TINY,
             bg=self.colors.background,
             fg=self.colors.text_secondary
         )
         self.accuracy_label.pack(anchor=tk.W)
+        
+        # Fix type
+        self.fix_type_label = tk.Label(
+            status_frame,
+            text="Fix: --",
+            font=Theme.FONT_TINY,
+            bg=self.colors.background,
+            fg=self.colors.text_secondary
+        )
+        self.fix_type_label.pack(anchor=tk.W)
         
         # Coordinate display - compact
         coord_frame = tk.Frame(content, bg=self.colors.surface)
@@ -392,6 +402,20 @@ class GPSScreen(tk.Frame):
         # Update fix status
         self._update_fix_status()
         
+        # Always update satellite count and accuracy (even without fix)
+        self.sat_label.config(text=f"Sats: {gps.satellites}")
+        
+        # Accuracy
+        if gps.hdop > 0:
+            acc = gps.accuracy_meters
+            self.accuracy_label.config(text=f"Acc: {acc:.0f}m")
+        else:
+            self.accuracy_label.config(text="Acc: --")
+        
+        # Fix type
+        fix_types = {0: "--", 1: "GPS", 2: "2D", 3: "3D"}
+        self.fix_type_label.config(text=f"Fix: {fix_types.get(gps.fix_type, '--')}")
+        
         if gps.fix_status:
             # Coordinates
             lat_dir = "N" if gps.latitude >= 0 else "S"
@@ -410,11 +434,8 @@ class GPSScreen(tk.Frame):
             # Course/heading
             self.course_label.config(text=f"{gps.course:.0f}°")
             self._draw_compass(gps.course)
-            
-            # Satellites
-            self.sat_label.config(text=f"Satellites: {gps.satellites}")
         else:
-            self._clear_display()
+            self._clear_display_coords()
     
     def _update_fix_status(self):
         """Update the fix status indicator"""
@@ -424,20 +445,32 @@ class GPSScreen(tk.Frame):
         gps = self.modem.gps_data
         
         if gps.fix_status:
-            self.fix_indicator.config(text="● GPS Fix", fg=self.colors.accent_success)
+            fix_label = "3D Fix" if gps.fix_type == 3 else "2D Fix" if gps.fix_type == 2 else "Fix"
+            self.fix_indicator.config(text=f"● {fix_label}", fg=self.colors.accent_success)
+        elif gps.satellites > 0:
+            self.fix_indicator.config(
+                text=f"● Acquiring ({gps.satellites} sats)", 
+                fg=self.colors.accent_warning
+            )
         else:
             self.fix_indicator.config(text="● Searching...", fg=self.colors.accent_warning)
     
-    def _clear_display(self):
-        """Clear all GPS display values"""
+    def _clear_display_coords(self):
+        """Clear coordinate display values (but keep satellite info)"""
         self.lat_label.config(text="---.------°")
         self.lon_label.config(text="---.------°")
         self.speed_label.config(text="-- km/h")
         self.alt_label.config(text="-- m")
         self.course_label.config(text="--°")
-        self.sat_label.config(text="Satellites: --")
-        self.fix_indicator.config(text="● No Fix", fg=self.colors.accent_danger)
         self._draw_compass(0)
+    
+    def _clear_display(self):
+        """Clear all GPS display values"""
+        self._clear_display_coords()
+        self.sat_label.config(text="Sats: --")
+        self.accuracy_label.config(text="Acc: --")
+        self.fix_type_label.config(text="Fix: --")
+        self.fix_indicator.config(text="● No Fix", fg=self.colors.accent_danger)
     
     def get_track_points(self) -> List[Tuple[float, float]]:
         """Get recorded track points"""
