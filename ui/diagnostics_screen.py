@@ -220,53 +220,53 @@ class DiagnosticsScreen(tk.Frame):
         
         # Command input area
         input_frame = tk.Frame(self.console_panel, bg=self.colors.surface)
-        input_frame.pack(fill=tk.X, padx=5, pady=3)
+        input_frame.pack(fill=tk.X, padx=3, pady=3)
         
         tk.Label(
             input_frame,
-            text="AT>",
+            text=">",
             font=(Theme.FONT_MONO, 10),
             bg=self.colors.surface,
             fg=self.colors.accent_primary
-        ).pack(side=tk.LEFT, padx=5)
+        ).pack(side=tk.LEFT, padx=2)
         
         self.cmd_entry = tk.Entry(
             input_frame,
-            font=(Theme.FONT_MONO, 10),
+            font=(Theme.FONT_MONO, 9),
             bg=self.colors.surface_light,
             fg=self.colors.text_primary,
             insertbackground=self.colors.text_primary,
-            relief=tk.FLAT,
-            width=25
+            relief=tk.FLAT
         )
-        self.cmd_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=3, pady=6)
+        self.cmd_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2, pady=4)
         self.cmd_entry.bind("<Return>", lambda e: self._send_at_command())
         
-        # Keyboard toggle button
-        KeyboardButton(input_frame, self.cmd_entry).pack(side=tk.LEFT, padx=2)
-        
+        # Send button - pack before keyboard so it's on the right
         TouchButton(
             input_frame,
-            text="Send",
+            text="▶",
             command=self._send_at_command,
-            width=55,
-            height=28,
+            width=36,
+            height=26,
             bg=self.colors.accent_primary,
             fg=self.colors.background,
-            font=Theme.FONT_TINY
-        ).pack(side=tk.RIGHT, padx=5, pady=5)
+            font=(Theme.FONT_FAMILY, 12)
+        ).pack(side=tk.RIGHT, padx=2, pady=3)
+        
+        # Keyboard toggle button
+        KeyboardButton(input_frame, self.cmd_entry).pack(side=tk.RIGHT, padx=1)
         
         # Quick commands
         quick_frame = tk.Frame(self.console_panel, bg=self.colors.background)
-        quick_frame.pack(fill=tk.X, padx=5, pady=3)
+        quick_frame.pack(fill=tk.X, padx=3, pady=2)
         
         quick_commands = [
             ("AT", "AT"),
             ("CSQ", "AT+CSQ"),
-            ("Net", "AT+CREG?"),
+            ("REG", "AT+CREG?"),
             ("GPS+", "AT+CGPS=1,1"),
             ("GPS-", "AT+CGPS=0"),
-            ("Clr", None)
+            ("CLR", None)
         ]
         
         for label, cmd in quick_commands:
@@ -274,8 +274,8 @@ class DiagnosticsScreen(tk.Frame):
                 quick_frame,
                 text=label,
                 command=lambda c=cmd: self._quick_command(c),
-                width=48,
-                height=26,
+                width=46,
+                height=24,
                 font=(Theme.FONT_FAMILY, 8)
             ).pack(side=tk.LEFT, padx=1)
     
